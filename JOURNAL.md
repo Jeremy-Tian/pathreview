@@ -81,3 +81,55 @@ up** (a refinement of my Week 7 description).
 - Fix approach to confirm in Week 9: probe from the existing `redis_url` via
   `redis.Redis.from_url(...)` (my preference — single source of truth) vs. adding
   explicit `redis_host` / `redis_port` fields to `Settings`.
+
+---
+
+## Week 9 — Solution building & PR submission
+
+### Check-in 1 (mid-week)
+
+**Current progress:**
+Implemented the #155 fix using the preferred approach from PLAN.md — `api/routes/health.py`
+now builds the Redis client via `redis.Redis.from_url(settings.redis_url, decode_responses=True)`
+instead of the nonexistent `settings.redis_host` / `settings.redis_port`. Confirmed
+(via grep) that no other module reads those fields, so the change is safe and localized.
+My Week 8 reproduction test now passes, and I added a companion test asserting a
+genuinely-unreachable Redis still reports `unhealthy` / 503.
+
+**Next steps:**
+Open a draft PR and request peer review in Slack; finalize wording and self-review
+against `make check` / `make test-unit`.
+
+**Blockers:**
+Local `.venv` is broken (x86_64 wheels on this arm64 Mac), so I couldn't run the
+project's `make` targets directly. I reproduced an equivalent clean Python 3.11 venv
+to run the unit suite, `ruff`, and `black` on my changes. Need the project venv
+rebuilt to run `make check` / `make test-unit` natively (tracked for follow-up).
+
+---
+
+### Check-in 2 (end of week)
+
+**PR link:** _<!-- paste the PR URL here once the draft PR is opened -->_
+
+**Branch:** `fix/155-health-check-redis-host`
+
+**What you built:**
+`GET /health` now probes Redis using the configured `redis_url` via
+`redis.Redis.from_url(...)`, the single source of truth already on `Settings`.
+This removes the `AttributeError` on the phantom `settings.redis_host` field, so the
+endpoint reports Redis health based on real reachability instead of always returning 503.
+
+**Tests added or updated:**
+- [tests/unit/test_health_redis_config.py](tests/unit/test_health_redis_config.py) —
+  regression test for #155: asserts redis `healthy`/200 when reachable (the repro) and
+  `unhealthy`/503 when unreachable (guards against a fix that skips the check).
+- [tests/conftest.py](tests/conftest.py) — autouse fixture routing structlog into
+  stdlib logging so `caplog`-based assertions work in the suite.
+
+**Self-review confirmation:** [ ] make check passes  [ ] make test-unit passes
+<!-- Not run natively (broken local .venv). Verified in an equivalent clean venv:
+     unit subset shows no new failures vs. baseline; ruff/black clean on changed files;
+     the 4 ruff findings and other unit failures are pre-existing and unrelated (see PR). -->
+
+**Draft PR feedback received from:** none yet (draft PR pending)

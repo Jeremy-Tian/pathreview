@@ -2,6 +2,13 @@
 
 **Issue:** [Health check references `settings.redis_host`, which does not exist on Settings (#155)](https://github.com/ascherj/pathreview/issues/155)
 
+> **Status (Week 9): implemented via the preferred approach.** `api/routes/health.py`
+> now probes Redis with `redis.Redis.from_url(settings.redis_url, decode_responses=True)`.
+> Confirmed no other module reads `redis_host`/`redis_port` (grep). Regression test
+> [tests/unit/test_health_redis_config.py](tests/unit/test_health_redis_config.py)
+> now passes (healthy Redis → 200) and a companion case asserts a down Redis still
+> yields `unhealthy`/503. Verified in a clean venv: no new unit-test/lint failures.
+
 ### Understand
 
 **Root cause.** `api/routes/health.py` builds its Redis probe with
