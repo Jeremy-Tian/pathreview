@@ -110,7 +110,7 @@ rebuilt to run `make check` / `make test-unit` natively (tracked for follow-up).
 
 ### Check-in 2 (end of week)
 
-**PR link:** _<!-- paste the PR URL here once the draft PR is opened -->_
+**PR link:** https://github.com/ascherj/pathreview/pull/427
 
 **Branch:** `fix/155-health-check-redis-host`
 
@@ -133,3 +133,83 @@ endpoint reports Redis health based on real reachability instead of always retur
      the 4 ruff findings and other unit failures are pre-existing and unrelated (see PR). -->
 
 **Draft PR feedback received from:** none yet (draft PR pending)
+
+---
+
+## Week 10 — Iteration & reflection
+
+### Reviewer feedback
+
+**Feedback received:** [ ] Yes  [x] No — still awaiting review
+
+**Summary of feedback:**
+No reviewer or maintainer feedback came in. My PR (https://github.com/ascherj/pathreview/pull/427)
+is open with 0 comments, 0 review comments, and 0 reviews as of the submission
+deadline. (Per the Summer 2026 course note, peer review isn't a feature this term,
+so this is expected.)
+
+**How you responded:**
+No changes were required since no feedback arrived. I re-read the PR one last time
+against `docs/CONTRIBUTING.md` — branch name (`fix/<issue#>-<desc>`), Conventional
+Commit messages with the `api` scope, and Google-style docstrings on the new test
+functions — and confirmed it still reflects the final state of the branch.
+
+---
+
+### Reflection
+
+**What was harder than you expected?**
+The environment, by a wide margin — not the bug. My machine had no Docker, no
+Homebrew, and a `.venv` that was silently broken (it held x86_64 wheels but I'm on
+an arm64 Mac, so every import of `pydantic_core` died with an "incompatible
+architecture" error). I couldn't even *run* a test until I'd installed Homebrew and
+Python 3.11 and stood up a clean venv from scratch. The second surprise was the bug
+itself being subtler than the issue described: the issue (and my own Week 7 note)
+said `/health` "throws an AttributeError and the endpoint fails," but the error is
+actually *caught* by the probe's `try/except`. The real symptom is a permanent
+false-negative — `/health` returns 503 with Redis "unhealthy" even when Redis is
+perfectly reachable. Getting that distinction right changed how I wrote the
+reproduction.
+
+**What did you learn about working in a large codebase?**
+The hardest skill wasn't writing the fix — it was telling *my* breakage apart from
+the codebase's existing breakage. When I added the `conftest.py` structlog fix, the
+unit suite showed 51 failures; I only trusted that number after diffing the failing
+test IDs **with vs. without** my change and proving the delta was exactly the tests
+I intended to fix. The suite already had ~46 pre-existing failures and several
+modules that don't even collect without optional deps. In my own projects "the tests
+pass" is binary; here "passes" means "introduces no *new* failures," and you have to
+establish a baseline before you can claim that. I also felt the pull of contribution
+hygiene — resisting the urge to fix the 4 unrelated `ruff` findings in the file I was
+already editing, and keeping commits small, scoped, and conventionally named.
+
+**How did AI tools help — and where did they fall short?**
+Most useful: locating the exact config/route mismatch fast, scaffolding the FastAPI
+`TestClient` reproduction, and explaining the structlog→stdlib→`caplog` routing,
+which I'd never wired up before. Where it fell short — twice, both instructive.
+First, it initially surfaced the *wrong* issue (a resume-parser bug) as "the issue
+to work on" before I confirmed against my branch and journal that my real issue was
+#155; I had to verify, not trust. Second, the first structlog fix it produced
+(`render_to_log_kwargs`) looked completely reasonable and passed the one test I
+checked — but it silently broke six `test_prompt_templates` tests, because the app
+logs with a `name` key that collides with a reserved `LogRecord` attribute and
+raises `KeyError`. Only running the *whole* suite and diffing the baseline caught it.
+The lesson: AI is good at plausible; verification is still mine to own.
+
+**What would you do differently if you started over?**
+Fix the environment first, before touching any code — I lost real time discovering
+the broken venv mid-reproduction instead of validating `make test-unit` on day one.
+I'd also keep the unrelated `conftest.py` structlog fix on its own branch/PR from the
+start instead of folding it into the #155 PR (I flagged it for the reviewer, but it'd
+have been cleaner to separate it). And I'd write the reproduction test to be
+fix-agnostic from the beginning — my first version stubbed Redis by constructor args,
+so when I switched the fix to `redis.Redis.from_url(...)` I had to go back and update
+the stub. Testing behavior at the endpoint boundary, not the construction details,
+would have avoided that.
+
+**What are you most proud of?**
+Catching my own regression. It would have been easy to see the target test go green,
+call the structlog fix done, and ship six new failures into the PR. Instead I diffed
+the full suite against a baseline and found the `KeyError` collision before it left my
+machine. Being skeptical of a fix that *looked* finished — and proving it with data
+rather than assuming — is the habit I most want to keep.
